@@ -120,7 +120,7 @@ def generate_calendar_html(df, year, month):
 st.title("📅 월간 학사일정 비교 캘린더 시스템")
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-file_name = os.path.join(current_dir, '2026 학사일정.csv')
+file_name = os.path.join(current_dir, '2026학사일정.csv')
 
 try:
     df_raw = load_data(file_name)
