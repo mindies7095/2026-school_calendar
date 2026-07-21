@@ -111,8 +111,9 @@ def generate_calendar_html(df, year, month):
 
 st.title("📅 월간 학사일정 캘린더 시스템")
 
-# 💡 파일 업로드 버튼 제거, 깃허브에 있는 파일 이름 직접 지정
-file_name = '2026 학사일정.csv'
+# 💡 현재 파일(app)이 있는 폴더 위치를 정확하게 추적하여 파일명과 합치기
+current_dir = os.path.dirname(os.path.abspath(__file__))
+file_name = os.path.join(current_dir, '2026학사일정.csv')
 
 try:
     # 지정한 파일명으로 바로 데이터 로드
