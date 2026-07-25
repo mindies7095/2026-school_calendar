@@ -20,7 +20,6 @@ def load_data(file_path):
     df = df.dropna(subset=['학교'])
     df = df[df['학교'].str.contains('중|고', na=False)]
     
-    # 💡 [요구사항 3] 학교와 학년을 하나의 컬럼으로 합치기 (예: 충북여고 1학년)
     df['학교_학년'] = df['학교'].astype(str) + ' ' + df['학년'].astype(str)
     
     id_vars = ['학교', '학년', '학교_학년']
@@ -32,29 +31,51 @@ def load_data(file_path):
     df_melt = df_melt[~df_melt['날짜문자열'].str.lower().isin(['x', '', 'nan'])]
     return df_melt
 
-# --- 2. 날짜 파싱 ---
-def parse_dates(date_str, year=2026):
+# --- 2. 날짜 파싱 (💡 한국 학사일정 1,2월 버그 픽스) ---
+def parse_dates(date_str, base_year=2026):
     date_str = str(date_str).replace(' ', '').replace('.', '/')
     try:
         if '~' in date_str:
-            start_str, end_str = date_str.split('~')
+            # '~'를 기준으로 시작일과 종료일을 나눔
+            start_str, end_str = date_str.split('~', 1) 
+            
+            # [시작일] 1월이나 2월이면 내년(base_year + 1)으로 계산
             s_parts = start_str.replace('-', '/').split('/')
             s_month, s_day = int(s_parts[0]), int(s_parts[1])
-            start_date = datetime(year, s_month, s_day)
+            s_year = base_year + 1 if s_month in [1, 2] else base_year
+            start_date = datetime(s_year, s_month, s_day)
             
+            # [종료일] 뒤가 비어있으면(예: 1.9~) 12월 31일로 잡던 버그 수정 -> 시작일과 동일하게 맞춤
             if not end_str:
-                end_date = datetime(year, 12, 31)
+                end_date = start_date
             else:
                 e_parts = end_str.replace('-', '/').split('/')
-                if len(e_parts) == 1:
-                    end_date = datetime(year, s_month, int(e_parts[0]))
+                if len(e_parts) == 1: # "12/20~31" 처럼 일자만 적힌 경우
+                    e_month = s_month
+                    e_day = int(e_parts[0])
                 else:
-                    end_date = datetime(year, int(e_parts[0]), int(e_parts[1]))
+                    e_month = int(e_parts[0])
+                    e_day = int(e_parts[1])
+                    
+                # 종료일도 1,2월이면 내년으로 계산
+                e_year = base_year + 1 if e_month in [1, 2] else base_year
+                
+                # 12월에 시작해서 3월에 끝나는 등 예외 케이스 방어
+                if e_year == s_year and e_month < s_month:
+                    e_year += 1
+                    
+                end_date = datetime(e_year, e_month, e_day)
+                
             return start_date, end_date
-        else:
+            
+        else: # '~'가 없는 단일 날짜
             parts = date_str.replace('-', '/').split('/')
-            start_date = datetime(year, int(parts[0]), int(parts[1]))
+            month, day = int(parts[0]), int(parts[1])
+            # 단일 날짜도 1, 2월이면 내년으로 계산
+            y = base_year + 1 if month in [1, 2] else base_year
+            start_date = datetime(y, month, day)
             return start_date, start_date
+            
     except Exception:
         return pd.NaT, pd.NaT
 
@@ -82,8 +103,7 @@ def generate_calendar_html(df, year, month):
                 day_events = df[(df['Start'] <= current_date) & (df['End'] >= current_date)]
                 for _, row in day_events.iterrows():
                     raw_name = str(row['일정명'])
-                    # 💡 [요구사항 2] 캘린더에 표시할 때 어떤 학교/학년인지 알 수 있게 텍스트 가공
-                    short_sg = str(row['학교_학년']).replace('학년', '') # 공간 절약을 위해 '학년' 글자 제거 (예: 충북여고 1)
+                    short_sg = str(row['학교_학년']).replace('학년', '')
                     evt_name = f"[{short_sg}] {raw_name}"
                     
                     if "모" in raw_name:
@@ -120,7 +140,7 @@ def generate_calendar_html(df, year, month):
 st.title("📅 월간 학사일정 비교 캘린더 시스템")
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-file_name = os.path.join(current_dir, '2026학사일정.csv')
+file_name = os.path.join(current_dir, '2026 학사일정.csv')
 
 try:
     df_raw = load_data(file_name)
@@ -131,7 +151,6 @@ try:
     
     school_grade_list = df_valid['학교_학년'].unique()
     
-    # 💡 UI 배치: 넓은 칸엔 학교 필터, 좁은 칸엔 날짜 필터 배치
     col1, col2 = st.columns([2, 1])
     with col1:
         selected_sgs = st.multiselect(
@@ -153,11 +172,9 @@ try:
     st.markdown("---")
     
     if not filtered_df.empty:
-        # 💡 [요구사항 1] 2개월치 달력의 연/월 계산
         m1_year = selected_year
         m1_month = selected_month
         
-        # 선택한 월이 12월이면 다음 달력은 다음 해 1월로 넘기기
         if m1_month == 12:
             m2_year = m1_year + 1
             m2_month = 1
@@ -165,17 +182,14 @@ try:
             m2_year = m1_year
             m2_month = m1_month + 1
             
-        # --- 첫 번째 달력 출력 ---
         st.markdown(f"<h2><span style='font-size: 35px; margin-right: 15px;'>{m1_month}</span> <span style='font-size:20px; font-weight:normal;'>{m1_year}<br>{calendar.month_name[m1_month]}</span></h2>", unsafe_allow_html=True)
         cal1_html = generate_calendar_html(filtered_df, m1_year, m1_month)
         st.components.v1.html(cal1_html, height=750, scrolling=True)
         
-        # --- 두 번째 달력 출력 ---
         st.markdown(f"<h2><span style='font-size: 35px; margin-right: 15px;'>{m2_month}</span> <span style='font-size:20px; font-weight:normal;'>{m2_year}<br>{calendar.month_name[m2_month]}</span></h2>", unsafe_allow_html=True)
         cal2_html = generate_calendar_html(filtered_df, m2_year, m2_month)
         st.components.v1.html(cal2_html, height=750, scrolling=True)
         
-        # 상세 데이터 표
         with st.expander("📝 표 형태로 선택된 전체 일정 비교하기"):
             st.dataframe(filtered_df[['학교_학년', '일정명', '날짜문자열', 'Start', 'End']].sort_values('Start'), hide_index=True, use_container_width=True)
     else:
