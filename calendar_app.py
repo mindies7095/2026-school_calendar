@@ -32,8 +32,11 @@ def load_data(file_path):
     df_melt = df_melt[~df_melt['날짜문자열'].str.lower().isin(['x', '', 'nan'])]
     return df_melt
 
-# --- 2. 날짜 파싱 (💡 연도가 포함된 날짜도 완벽하게 읽어내는 만능 번역기) ---
-def parse_dates(date_str, base_year=2026):
+# --- 2. 날짜 파싱 (💡 선택한 연도 및 현재 연도를 자동 반영) ---
+def parse_dates(date_str, base_year=None):
+    if base_year is None:
+        base_year = datetime.now().year
+
     date_str = str(date_str).replace(' ', '').replace('.', '/').replace('-', '/')
     try:
         if '~' in date_str:
@@ -45,17 +48,17 @@ def parse_dates(date_str, base_year=2026):
             if not d_str:
                 return None
             parts = [p for p in d_str.split('/') if p]
-            if len(parts) >= 3: # '2027.1.9' 처럼 연도가 포함된 경우
+            if len(parts) >= 3:  # '2027.1.9' 처럼 연도가 포함된 경우
                 y = int(parts[0])
                 if y < 100: y += 2000
                 m = int(parts[1])
                 d = int(parts[2])
-            elif len(parts) == 2: # '1.9' 처럼 월/일만 있는 경우
+            elif len(parts) == 2:  # '1.9' 처럼 월/일만 있는 경우
                 m = int(parts[0])
                 d = int(parts[1])
-                # 1, 2월은 다음 해로 간주
+                # 1, 2월 학사일정(학년도 말)은 다음 해로 간주
                 y = default_year + 1 if m in [1, 2] else default_year
-            elif len(parts) == 1: # '~25' 처럼 일자만 있는 경우
+            elif len(parts) == 1:  # '~25' 처럼 일자만 있는 경우
                 m = -1
                 d = int(parts[0])
                 y = -1
@@ -166,12 +169,10 @@ else:
     
     try:
         df_raw = load_data(file_name)
-        df_raw[['Start', 'End']] = df_raw.apply(lambda row: pd.Series(parse_dates(row['날짜문자열'])), axis=1)
-        df_valid = df_raw.dropna(subset=['Start', 'End'])
         
         st.markdown("### 🔍 학교 및 기간 설정")
         
-        school_grade_list = df_valid['학교_학년'].unique()
+        school_grade_list = df_raw['학교_학년'].unique()
         
         col1, col2 = st.columns([2, 1])
         with col1:
@@ -184,14 +185,32 @@ else:
             
         with col2:
             col2_1, col2_2 = st.columns(2)
+            
+            # 현재 연도 및 월 자동 계산
+            today = datetime.now()
+            current_year = today.year
+            current_month = today.month
+
             with col2_1:
-                selected_year = st.selectbox("연도", [2026, 2027])
-            with col2_2:
-                selected_month = st.selectbox("시작 월", list(range(1, 13)), index=3) 
+                # [작년, 올해, 내년, 내후년] 목록 생성 후 '올해(인덱스 1)'를 기본값으로 지정
+                year_options = [current_year - 1, current_year, current_year + 1, current_year + 2]
+                selected_year = st.selectbox("연도", year_options, index=1)
                 
-        filtered_df = df_valid[df_valid['학교_학년'].isin(selected_sgs)]
-        
+            with col2_2:
+                # 현재 월을 기본 선택 (예: 4월이면 4월이 기본)
+                selected_month = st.selectbox("시작 월", list(range(1, 13)), index=current_month - 1) 
+                
         st.markdown("---")
+        
+        # 선택된 학교/학년 데이터만 필터링한 후 날짜 파싱 수행 (속도 최적화)
+        if selected_sgs:
+            filtered_raw = df_raw[df_raw['학교_학년'].isin(selected_sgs)].copy()
+            filtered_raw[['Start', 'End']] = filtered_raw.apply(
+                lambda row: pd.Series(parse_dates(row['날짜문자열'], base_year=selected_year)), axis=1
+            )
+            filtered_df = filtered_raw.dropna(subset=['Start', 'End'])
+        else:
+            filtered_df = pd.DataFrame()
         
         if not filtered_df.empty:
             m1_year = selected_year
