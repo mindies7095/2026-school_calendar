@@ -35,7 +35,7 @@ def load_data(file_path): # 데이터 처리 함수 정의.
 # --- 2. 날짜 파싱 ---
 def parse_dates(date_str, base_year=None):
     if base_year is None:
-        base_year = datetime.now().year   # 기준 연도 = 날짜 상 현재 연도 --> 해가 바뀔 때마다 기준 연도 자동 업데이트.
+        base_year = datetime.now().year   # 기준 연도 = 현재 컴퓨터 시계 상 연도 --> 해가 바뀔 때마다 기준 연도 자동 업데이트.
  
     date_str = str(date_str).replace(' ', '').replace('.', '/').replace('-', '/')   # . or -을 /로 통일.
     try:
