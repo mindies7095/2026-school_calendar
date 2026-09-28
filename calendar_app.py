@@ -9,8 +9,8 @@ st.set_page_config(page_title="월간 학사일정 캘린더", layout="wide")
 
 # --- 1. 데이터 로드 ---
 @st.cache_data
-def load_data(file_path):
-    if file_path.endswith('.csv'):
+def load_data(file_path): # 데이터 처리 함수 정의.
+    if file_path.endswith('.csv'):  # 파일 형식 구분.
         try:
             df = pd.read_csv(file_path, encoding='cp949')
         except UnicodeDecodeError:
@@ -21,7 +21,7 @@ def load_data(file_path):
     df = df.dropna(subset=['학교'])
     df = df[df['학교'].str.contains('중|고', na=False)]
     
-    df['학교_학년'] = df['학교'].astype(str) + ' ' + df['학년'].astype(str)
+    df['학교_학년'] = df['학교'].astype(str) + ' ' + df['학년'].astype(str)  # OO학교 n학년이라는 새로운 형식 생성.
     
     id_vars = ['학교', '학년', '학교_학년']
     value_vars = [col for col in df.columns if col not in id_vars]
@@ -29,17 +29,17 @@ def load_data(file_path):
     df_melt = pd.melt(df, id_vars=id_vars, value_vars=value_vars, var_name='일정명', value_name='날짜문자열')
     df_melt = df_melt.dropna(subset=['날짜문자열'])
     df_melt['날짜문자열'] = df_melt['날짜문자열'].astype(str).str.strip()
-    df_melt = df_melt[~df_melt['날짜문자열'].str.lower().isin(['x', '', 'nan'])]
+    df_melt = df_melt[~df_melt['날짜문자열'].str.lower().isin(['x', '', 'nan'])]  # 날짜가 없거나, x표시가 된 부분은 삭제.
     return df_melt
 
-# --- 2. 날짜 파싱 (💡 선택한 연도 및 현재 연도를 자동 반영) ---
+# --- 2. 날짜 파싱 ---
 def parse_dates(date_str, base_year=None):
     if base_year is None:
-        base_year = datetime.now().year
-
-    date_str = str(date_str).replace(' ', '').replace('.', '/').replace('-', '/')
+        base_year = datetime.now().year   # 기준 연도 = 날짜 상 현재 연도 --> 해가 바뀔 때마다 기준 연도 자동 업데이트.
+ 
+    date_str = str(date_str).replace(' ', '').replace('.', '/').replace('-', '/')   # . or -을 /로 통일.
     try:
-        if '~' in date_str:
+        if '~' in date_str:     # ~ 있으면 시작일과 종료일 구분. (없으면 시작일 = 종료일)
             start_str, end_str = date_str.split('~', 1)
         else:
             start_str, end_str = date_str, date_str
@@ -48,17 +48,17 @@ def parse_dates(date_str, base_year=None):
             if not d_str:
                 return None
             parts = [p for p in d_str.split('/') if p]
-            if len(parts) >= 3:  # '2027.1.9' 처럼 연도가 포함된 경우
+            if len(parts) >= 3:  # '2027.1.9' 처럼 연도가 포함된 경우 --> 그대로 가져옴.
                 y = int(parts[0])
                 if y < 100: y += 2000
                 m = int(parts[1])
                 d = int(parts[2])
-            elif len(parts) == 2:  # '1.9' 처럼 월/일만 있는 경우
+            elif len(parts) == 2:  # '1.9' 처럼 월/일만 있는 경우  --> 기준 연도 사용.
                 m = int(parts[0])
                 d = int(parts[1])
-                # 1, 2월 학사일정(학년도 말)은 다음 해로 간주
-                y = default_year + 1 if m in [1, 2] else default_year
-            elif len(parts) == 1:  # '~25' 처럼 일자만 있는 경우
+                # 1, 2월 학사일정(학년도 말)은 다음 해로 간주 --> 학사일정 특정 상, 3월~내년도 2월까지로 잡는 게 대부분이기 때문.
+                y = default_year + 1 if m in [1, 2] else default_year  
+            elif len(parts) == 1:  # '~25' 처럼 일자만 있는 경우  --> 임시값 지정.
                 m = -1
                 d = int(parts[0])
                 y = -1
@@ -101,7 +101,7 @@ def parse_dates(date_str, base_year=None):
 
 # --- 3. HTML 달력 생성 ---
 def generate_calendar_html(df, year, month):
-    calendar.setfirstweekday(calendar.SUNDAY)
+    calendar.setfirstweekday(calendar.SUNDAY)  # 달력의 맨 왼쪽 = 일요일
     cal = calendar.monthcalendar(year, month)
     
     html = f'<table class="calendar-table">'
@@ -125,7 +125,7 @@ def generate_calendar_html(df, year, month):
                     raw_name = str(row['일정명'])
                     short_sg = str(row['학교_학년']).replace('학년', '')
                     evt_name = f"[{short_sg}] {raw_name}"
-                    
+                    # 색상 설정
                     if "모" in raw_name:
                         color = "#cce5ff"  
                     elif "중간" in raw_name or "기말" in raw_name:
@@ -162,10 +162,10 @@ st.title("📅 월간 학사일정 비교 캘린더 시스템")
 current_dir = os.path.dirname(os.path.abspath(__file__))
 csv_files = glob.glob(os.path.join(current_dir, "*.csv"))
 
-if not csv_files:
+if not csv_files:  # 깃허브 저장소에 csv 파일(데이터셋)이 없는 경우
     st.error("⚠️ 깃허브 저장소에 CSV 파일이 하나도 없습니다! 파일을 업로드해 주세요.")
 else:
-    file_name = csv_files[0]
+    file_name = csv_files[0]   # 데이터셋이 있으면 첫 번째 데이터셋을 불러옴.
     
     try:
         df_raw = load_data(file_name)
