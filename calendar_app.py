@@ -214,24 +214,17 @@ try:
                 max_selections=5
             )
         with col2:
-            col2_1, col2_2 = st.columns(2)
-            
-            # 원본 코드 디테일 반영: 현재 연도 및 월 자동 계산
+            # ✅ 수정한 부분: 연도 선택 메뉴를 삭제하고, 현재 연도를 무조건 고정으로 사용합니다.
             today = datetime.now()
-            current_year = today.year
+            selected_year = today.year
             current_month = today.month
             
-            with col2_1:
-                # [작년, 올해, 내년, 내후년] 목록 생성 후 '올해(인덱스 1)'를 기본값으로 지정
-                year_options = [current_year - 1, current_year, current_year + 1, current_year + 2]
-                selected_year = st.selectbox("연도", year_options, index=1)
-            with col2_2:
-                # 현재 월을 기본 선택
-                selected_month = st.selectbox("시작 월", list(range(1, 13)), index=current_month - 1)
+            # 연도 선택창(selectbox)은 지우고 시작 월만 남겼습니다.
+            selected_month = st.selectbox("시작 월", list(range(1, 13)), index=current_month - 1)
                 
         st.markdown("---")
         
-        # 원본 코드 디테일 반영: 선택된 학교/학년 데이터만 필터링한 후 날짜 파싱 수행 (속도 최적화)
+        # 선택된 학교/학년 데이터만 필터링한 후 날짜 파싱 수행 (속도 최적화)
         if selected_sgs:
             filtered_raw = df_raw[df_raw['학교_학년'].isin(selected_sgs)].copy()
             filtered_raw[['Start', 'End']] = filtered_raw.apply(
